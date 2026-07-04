@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบฝากและแชร์ไฟล์ในบ้าน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen font-sans">
+
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-indigo-600 mb-2"><i class="fa-solid fa-server mr-2"></i>Local File Server</h1>
+            <p class="text-gray-500 text-sm">อัปโหลดไฟล์ได้ทุกประเภท ไม่จำกัดขนาด แชร์ข้อมูลในเครือข่ายความเร็วสูง</p>
+        </header>
+
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-6">
+    <div class="flex justify-between items-center mb-2">
+        <span class="text-sm font-semibold text-gray-700"><i class="fa-solid fa-hard-drive mr-2 text-indigo-500"></i>พื้นที่จัดเก็บข้อมูลบนเซิร์ฟเวอร์</span>
+        <span class="text-xs font-medium text-gray-500">ว่าง {{ disk.free }} จาก {{ disk.total }}</span>
+    </div>
+    <div class="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+        <div class="bg-indigo-600 h-3 rounded-full transition-all duration-500" style="width: {{ disk.percent_used }}%;"></div>
+    </div>
+    <div class="flex justify-between text-xs text-gray-400 mt-1.5">
+        <span>ใช้ไปแล้ว {{ disk.percent_used }}% ({{ disk.used }})</span
+        <span class="text-green-600 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i>พร้อมใช้งานสำหรับไฟล์ทุกขนาด</span>
+    </div>
+</div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="p-4 mb-6 rounded-lg text-sm {% if category == 'success' %} bg-green-100 text-green-700 {% else %} bg-red-100 text-red-700 {% endif %} flex items-center shadow-sm">
+                  <i class="fa-solid {% if category == 'success' %} fa-circle-check {% else %} fa-circle-exclamation {% endif %} mr-2 text-base"></i>
+                  {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
+            <h2 class="text-base font-semibold mb-3 text-gray-700"><i class="fa-solid fa-cloud-arrow-up mr-2 text-indigo-500"></i>อัปโหลดไฟล์ใหม่</h2>
+            
+            <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" class="space-y-4">
+                <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-5 bg-gray-50 hover:bg-gray-100 transition cursor-pointer relative">
+                    <input type="file" name="file" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" id="fileInput" onchange="updateFileName()">
+                    <i class="fa-solid fa-file-zipper text-4xl text-gray-400 mb-2" id="uploadIcon"></i>
+                    <p class="text-sm text-gray-600 font-medium text-center px-4" id="fileNameDisplay">คลิกเพื่อเลือกไฟล์ทั่วไป หรือไฟล์บีบอัด (.zip, .rar)</p>
+                </div>
+                
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-xl transition shadow-md flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-upload"></i> อัปโหลดเข้าสู่คลังไฟล์
+                </button>
+            </form>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-2 border-b border-gray-50">
+                <h2 class="text-base font-semibold text-gray-700"><i class="fa-solid fa-folder-open mr-2 text-indigo-500"></i>คลังไฟล์และดาวน์โหลด</h2>
+                
+                <div class="flex items-center gap-2">
+                    <label for="sortSelector" class="text-xs font-semibold text-gray-400 whitespace-nowrap"><i class="fa-solid fa-filter mr-1"></i>จัดเรียงตาม:</label>
+                    <select id="sortSelector" onchange="changeSort(this.value)" class="bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg p-1.5 focus:ring-indigo-500 focus:border-indigo-500 font-medium">
+                        <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>วันที่: ล่าสุดขึ้นก่อน</option>
+                        <option value="oldest" {% if current_sort == 'oldest' %}selected{% endif %}>วันที่: เก่าสุดขึ้นก่อน</option>
+                        <option value="name_asc" {% if current_sort == 'name_asc' %}selected{% endif %}>ชื่อ: ก-ฮ, A-Z</option>
+                        <option value="name_desc" {% if current_sort == 'name_desc' %}selected{% endif %}>ชื่อ: ฮ-ก, Z-A</option>
+                        <option value="size_desc" {% if current_sort == 'size_desc' %}selected{% endif %}>ขนาด: ใหญ่ -> เล็ก</option>
+                        <option value="size_asc" {% if current_sort == 'size_asc' %}selected{% endif %}>ขนาด: เล็ก -> ใหญ่</option>
+                    </select>
+                </div>
+            </div>
+            
+            {% if files %}
+                <div class="divide-y divide-gray-100 max-h-[500px] overflow-y-auto pr-2">
+                    {% for file in files %}
+                        <div class="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50 px-2 rounded-lg transition">
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <i class="fa-solid fa-file-arrow-down text-indigo-400 text-xl flex-shrink-0"></i>
+                                <div class="overflow-hidden">
+                                    <p class="text-sm font-medium text-gray-800 truncate" title="{{ file.name }}">{{ file.name }}</p>
+                                    <p class="text-xs text-gray-400 flex gap-2 mt-0.5">
+                                        <span><i class="fa-solid fa-weight-hanging mr-1"></i>{{ file.size }}</span>
+                                        <span>•</span>
+                                        <span><i class="fa-solid fa-calendar-days mr-1"></i>{{ file.time }}</span>
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center gap-2 justify-end">
+                                <a href="{{ url_for('download_file', filename=file.name) }}" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold py-2 px-3.5 rounded-xl flex items-center gap-1 transition shadow-sm">
+                                    <i class="fa-solid fa-download"></i> ดาวน์โหลด
+                                </a>
+                                
+                                <form action="{{ url_for('delete_file', filename=file.name) }}" method="POST" onsubmit="return confirm('คุณแน่ใจหรือไม่ว่าต้องการลบไฟล์นี้?');" class="inline">
+                                    <button type="submit" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold py-2 px-3.5 rounded-xl flex items-center gap-1 transition shadow-sm">
+                                        <i class="fa-solid fa-trash-can"></i> ลบ
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-12 text-gray-400">
+                    <i class="fa-solid fa-box-open text-5xl mb-3 block text-gray-300"></i>
+                    <p class="text-sm">คลังไฟล์ว่างเปล่า อัปโหลดไฟล์ใดๆ เข้ามาได้เลย</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function updateFileName() {
+            const input = document.getElementById('fileInput');
+            const display = document.getElementById('fileNameDisplay');
+            const icon = document.getElementById('uploadIcon');
+            if (input.files.length > 0) {
+                display.innerText = "เตรียมอัปโหลด: " + input.files[0].name;
+                display.classList.remove('text-gray-600');
+                display.classList.add('text-indigo-600', 'font-semibold');
+                icon.className = "fa-solid fa-file-circle-check text-4xl text-indigo-500 mb-2";
+            }
+        }
+
+        function changeSort(val) {
+            window.location.href = "/?sort=" + val;
+        }
+    </script>
+</body>
+</html>
